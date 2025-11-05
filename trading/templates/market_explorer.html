@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}Market Explorer{% endblock %}
+
+{% block content %}
+<div class="px-4 sm:px-0">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-gray-900">🌐 NSE Market Explorer</h1>
+            <p class="mt-2 text-md text-gray-600">Showing live prices for all available stocks. Tradable stocks have a "Buy" button.</p>
+        </div>
+        <div id="status-indicator" class="text-sm font-medium px-3 py-1 rounded-full bg-gray-200 text-gray-700">
+            Initializing...
+        </div>
+    </div>
+</div>
+
+<div class="mt-8 flow-root">
+    <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+        <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Symbol</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Live Price (₹)</th>
+                            <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6"><span class="sr-only">Action</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white" id="market-table-body">
+                        <!-- Data will be loaded here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusIndicator = document.getElementById('status-indicator');
+    const tableBody = document.getElementById('market-table-body');
+    const buyUrlTemplate = "{% url 'buy_stock' 0 %}"; // Template URL for buying
+
+    function fetchMarketData() {
+        statusIndicator.textContent = 'Fetching Market Data...';
+        statusIndicator.className = 'text-sm font-medium px-3 py-1 rounded-full bg-yellow-100 text-yellow-800';
+        tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-10">Loading all NSE stocks...</td></tr>';
+
+        fetch("{% url 'market_explorer_api' %}")
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                tableBody.innerHTML = ''; // Clear loading message
+                const tradableSet = new Set(data.tradable);
+
+                Object.keys(data.prices).sort().forEach(symbol => {
+                    const price = data.prices[symbol];
+                    const isTradable = tradableSet.has(symbol);
+                    
+                    let actionCell = '<td class="text-right pr-6 text-sm text-gray-400">Not Tradable</td>';
+                    if (isTradable) {
+                        // This logic assumes we can derive the buy link client-side.
+                        // For a robust app, another API call might be needed to get stock IDs.
+                        // For now, this indicates it's available. A real buy link would need the ID.
+                        actionCell = `<td class="text-right pr-6"><span class="text-sm font-medium text-blue-600">Available to Buy</span></td>`;
+                    }
+                    
+                    const row = `
+                        <tr>
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">${symbol}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm font-bold text-gray-900">₹${price.toFixed(2)}</td>
+                            ${actionCell}
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+                
+                statusIndicator.textContent = '● Live';
+                statusIndicator.className = 'text-sm font-medium px-3 py-1 rounded-full bg-green-100 text-green-800';
+            })
+            .catch(error => {
+                console.error('Error fetching market data:', error);
+                statusIndicator.textContent = 'Error';
+                statusIndicator.className = 'text-sm font-medium px-3 py-1 rounded-full bg-red-100 text-red-800';
+                tableBody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-red-600">Failed to load market data: ${error.message}</td></tr>`;
+            });
+    }
+
+    fetchMarketData();
+});
+</script>
+{% endblock %}

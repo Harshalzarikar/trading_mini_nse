@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Live Prices - yfinance{% endblock %}
+
+{% block content %}
+<div class="px-4 sm:px-0">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-gray-900">📈 Live Market Prices</h1>
+            <p class="mt-2 text-md text-gray-600">Prices are automatically refreshed from Yahoo Finance every 15 seconds.</p>
+        </div>
+        <div id="status-indicator" class="text-sm font-medium px-3 py-1 rounded-full bg-gray-200 text-gray-700">
+            Initializing...
+        </div>
+    </div>
+</div>
+
+<div class="mt-8 flow-root">
+    <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+        <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Symbol</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Price (₹)</th>
+                            <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6"><span class="sr-only">Buy</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        {% for stock in stocks %}
+                        <tr id="stock-{{ stock.symbol }}">
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ stock.symbol }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ stock.name }}</td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm font-bold text-gray-900" data-last-price="{{ stock.current_price }}">
+                                <span class="price-value">--.--</span>
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                <a href="{% url 'buy_stock' stock.id %}" class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">Buy</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-gray-500">No stocks have been added to the system.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusIndicator = document.getElementById('status-indicator');
+
+    function fetchPrices() {
+        statusIndicator.textContent = 'Fetching...';
+        statusIndicator.classList.remove('bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+        statusIndicator.classList.add('bg-yellow-100', 'text-yellow-800');
+
+        fetch("{% url 'live_prices_api' %}")
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                Object.keys(data).forEach(symbol => {
+                    const row = document.getElementById(`stock-${symbol}`);
+                    if (row) {
+                        const priceCell = row.querySelector('td:nth-child(3)');
+                        const priceSpan = priceCell.querySelector('.price-value');
+                        const newPrice = data[symbol];
+                        const lastPrice = parseFloat(priceCell.dataset.lastPrice) || 0;
+                        
+                        priceSpan.textContent = `₹${newPrice.toFixed(2)}`;
+
+                        priceCell.style.transition = 'background-color 0.2s ease';
+                        if (newPrice > lastPrice) {
+                            priceCell.style.backgroundColor = '#dcfce7'; // green-100
+                        } else if (newPrice < lastPrice) {
+                            priceCell.style.backgroundColor = '#fee2e2'; // red-100
+                        }
+
+                        setTimeout(() => {
+                           priceCell.style.backgroundColor = 'transparent';
+                        }, 500);
+
+                        priceCell.dataset.lastPrice = newPrice;
+                    }
+                });
+
+                statusIndicator.textContent = '● Live';
+                statusIndicator.classList.remove('bg-yellow-100', 'text-yellow-800');
+                statusIndicator.classList.add('bg-green-100', 'text-green-800');
+            })
+            .catch(error => {
+                console.error('Error fetching live prices:', error);
+                statusIndicator.textContent = 'Error';
+                statusIndicator.classList.remove('bg-yellow-100', 'text-yellow-800');
+                statusIndicator.classList.add('bg-red-100', 'text-red-800');
+            });
+    }
+
+    fetchPrices();
+    setInterval(fetchPrices, 15000); 
+});
+</script>
+{% endblock %}

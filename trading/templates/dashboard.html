@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+{% block title %}Market - NSE Trading Platform{% endblock %}
+
+{% block content %}
+<div class="px-4 sm:px-0">
+    <h1 class="text-3xl font-bold tracking-tight text-gray-900">Market Watch</h1>
+    <p class="mt-2 text-md text-gray-600">Browse stocks and start building your portfolio.</p>
+    <div class="mt-2 flex items-center space-x-2">
+        <span id="connection-status" class="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-gray-700">Connecting...</span>
+        <span class="text-xs text-gray-500">|</span>
+        <span class="text-xs font-medium">Portfolio P&L: <span id="total-pl" class="font-bold">₹0.00</span></span>
+    </div>
+</div>
+
+<div id="stocks-container" class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    {% for stock in stocks %}
+    <div id="stock-{{ stock.id }}" class="stock-card bg-white rounded-xl shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300" data-stock-id="{{ stock.id }}">
+        <div class="p-6">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="tracking-wide text-sm text-blue-600 font-bold">{{ stock.symbol }}</div>
+                    <p class="block mt-1 text-lg leading-tight font-medium text-black">{{ stock.name }}</p>
+                </div>
+                <div class="price-container">
+                    <div class="text-2xl font-bold text-gray-800 stock-price">
+                        ₹{{ stock.current_price|floatformat:2 }}
+                    </div>
+                    <div class="text-sm price-change hidden"></div>
+                    <div class="text-sm pl-container mt-1">
+                        <span class="pl-label">P&L:</span>
+                        <span class="pl-value" data-purchase-price="{{ stock.purchase_price|default:stock.current_price }}">₹0.00</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <a href="{% url 'buy_stock' stock.id %}" class="w-full text-center bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                    Buy
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full text-center py-12 bg-white rounded-lg shadow">
+        <p class="text-gray-500">No stocks are currently available in the market.</p>
+        {% if user.is_superuser %}
+        <a href="{% url 'add_stock' %}" class="mt-4 inline-block bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow-lg hover:bg-blue-700 transition duration-300">Add a Stock</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const connectionStatus = document.getElementById('connection-status');
+        
+        // Calculate initial P&L for all stocks
+        calculateAllProfitLoss();
+        
+        // WebSocket connection for real-time updates
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/stocks/`;
+        let socket;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        
+        function connectWebSocket() {
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function(e) {
+                console.log('WebSocket connected');
+                connectionStatus.textContent = '● Live - Real-Time Updates';
+                connectionStatus.classList.remove('bg-gray-200', 'text-gray-700', 'bg-red-100', 'text-red-800');
+                connectionStatus.classList.add('bg-green-100', 'text-green-800');
+                reconnectAttempts = 0;
+            };
+            
+            socket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                
+                if (data.type === 'connection_established') {
+                    console.log(data.message);
+                } else if (data.type === 'stock_update') {
+                    updateStockPrice(data.stock);
+                    calculateAllProfitLoss();
+                }
+            };
+            
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                connectionStatus.textContent = 'Connection Error';
+                connectionStatus.classList.remove('bg-green-100', 'text-green-800');
+                connectionStatus.classList.add('bg-red-100', 'text-red-800');
+            };
+            
+            socket.onclose = function(e) {
+                console.log('WebSocket closed');
+                connectionStatus.textContent = 'Reconnecting...';
+                connectionStatus.classList.remove('bg-green-100', 'text-green-800');
+                connectionStatus.classList.add('bg-gray-200', 'text-gray-700');
+                
+                // Attempt to reconnect
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(connectWebSocket, 3000 * reconnectAttempts);
+                } else {
+                    connectionStatus.textContent = 'Disconnected';
+                    connectionStatus.classList.add('bg-red-100', 'text-red-800');
+                }
+            };
+        }
+        
+        // Initial connection
+        connectWebSocket();
+        
+        // Calculate profit/loss for all stocks and update total
+        function calculateAllProfitLoss() {
+            const stockCards = document.querySelectorAll('.stock-card');
+            let totalPL = 0;
+            
+            stockCards.forEach(card => {
+                const priceElement = card.querySelector('.stock-price');
+                const plValueElement = card.querySelector('.pl-value');
+                
+                if (priceElement && plValueElement) {
+                    const currentPrice = parseFloat(priceElement.textContent.replace('₹', ''));
+                    const purchasePrice = parseFloat(plValueElement.getAttribute('data-purchase-price'));
+                    
+                    // Calculate P&L
+                    const pl = currentPrice - purchasePrice;
+                    const plPercentage = (pl / purchasePrice) * 100;
+                    
+                    // Update P&L display
+                    plValueElement.textContent = `₹${pl.toFixed(2)} (${plPercentage.toFixed(2)}%)`;
+                    
+                    // Add color based on profit or loss
+                    if (pl > 0) {
+                        plValueElement.classList.remove('text-red-500');
+                        plValueElement.classList.add('text-green-500');
+                    } else if (pl < 0) {
+                        plValueElement.classList.remove('text-green-500');
+                        plValueElement.classList.add('text-red-500');
+                    } else {
+                        plValueElement.classList.remove('text-green-500', 'text-red-500');
+                    }
+                    
+                    // Add to total P&L
+                    totalPL += pl;
+                }
+            });
+            
+            // Update total P&L display
+            const totalPLElement = document.getElementById('total-pl');
+            if (totalPLElement) {
+                totalPLElement.textContent = `₹${totalPL.toFixed(2)}`;
+                
+                // Add color based on total profit or loss
+                if (totalPL > 0) {
+                    totalPLElement.classList.remove('text-red-500');
+                    totalPLElement.classList.add('text-green-500');
+                } else if (totalPL < 0) {
+                    totalPLElement.classList.remove('text-green-500');
+                    totalPLElement.classList.add('text-red-500');
+                } else {
+                    totalPLElement.classList.remove('text-green-500', 'text-red-500');
+                }
+            }
+        }
+        
+        function updateStockPrice(stock) {
+            const stockCard = document.getElementById(`stock-${stock.id}`);
+            if (!stockCard) return;
+            
+            const priceElement = stockCard.querySelector('.stock-price');
+            const changeElement = stockCard.querySelector('.price-change');
+            const plValueElement = stockCard.querySelector('.pl-value');
+            
+            if (priceElement) {
+                const oldPrice = parseFloat(priceElement.textContent.replace('₹', ''));
+                const newPrice = parseFloat(stock.price).toFixed(2);
+                
+                // Update price with animation
+                priceElement.textContent = `₹${newPrice}`;
+                
+                // Update purchase price data attribute if provided
+                if (stock.purchase_price && plValueElement) {
+                    plValueElement.setAttribute('data-purchase-price', stock.purchase_price);
+                }
+                
+                // Show price change indicator
+                if (oldPrice < stock.price) {
+                    // Price increased
+                    changeElement.textContent = '▲';
+                    changeElement.classList.remove('text-red-500', 'hidden');
+                    changeElement.classList.add('text-green-500');
+                    
+                    // Flash animation
+                    stockCard.classList.add('bg-green-50');
+                    setTimeout(() => {
+                        stockCard.classList.remove('bg-green-50');
+                    }, 1000);
+                } else if (oldPrice > stock.price) {
+                    // Price decreased
+                    changeElement.textContent = '▼';
+                    changeElement.classList.remove('text-green-500', 'hidden');
+                    changeElement.classList.add('text-red-500');
+                    
+                    // Flash animation
+                    stockCard.classList.add('bg-red-50');
+                    setTimeout(() => {
+                        stockCard.classList.remove('bg-red-50');
+                    }, 1000);
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

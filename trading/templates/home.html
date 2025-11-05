@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Welcome - NSE Trading Platform{% endblock %}
+
+{% block content %}
+<div class="text-center py-24 px-4">
+    <h1 class="text-4xl md:text-6xl font-extrabold text-gray-900 tracking-tight">
+        Welcome to the <span class="text-blue-600">NSE Trading Simulation</span>
+    </h1>
+    <p class="mt-4 max-w-2xl mx-auto text-lg text-gray-500">
+        Practice your trading strategies with virtual money in a real-world market environment.
+        No risk, all reward.
+    </p>
+    <div class="mt-8 flex justify-center space-x-4">
+        <a href="{% url 'register' %}" class="inline-block bg-blue-600 text-white font-semibold py-3 px-8 rounded-lg shadow-lg hover:bg-blue-700 transition duration-300">
+            Get Started
+        </a>
+        <a href="{% url 'login' %}" class="inline-block bg-white text-blue-600 font-semibold py-3 px-8 rounded-lg shadow-lg hover:bg-gray-100 transition duration-300 border border-gray-200">
+            Login
+        </a>
+    </div>
+</div>
+{% endblock %}
