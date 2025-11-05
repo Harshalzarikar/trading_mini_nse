@@ -1,0 +1,36 @@
+# Django Framework
+Django==5.1.5
+
+# Django REST Framework for API endpoints
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.4.0
+
+# Django Channels for WebSocket support
+channels==4.2.0
+daphne==4.1.2
+
+# Stock market data
+yfinance==0.2.50
+nsepy==0.8
+
+# Data processing
+pandas==2.2.3
+numpy==2.2.1
+
+# HTTP requests
+requests==2.32.3
+
+# ASGI server
+uvicorn==0.34.0
+
+# Database
+psycopg2-binary==2.9.10  # PostgreSQL adapter (optional, for production)
+
+# Timezone support
+pytz==2024.2
+
+# Environment variables (optional, for production)
+python-decouple==3.8
+
+# CORS headers (if building separate frontend)
+django-cors-headers==4.6.0
